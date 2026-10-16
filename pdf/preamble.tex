@@ -1,0 +1,45 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[a4paper,left=2.2cm,right=2.2cm,top=2.3cm,bottom=2.3cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{fontspec}
+\setmainfont{cmun}[Extension=.otf,UprightFont=*rm,BoldFont=*bx,ItalicFont=*ti,BoldItalicFont=*bi,SlantedFont=*sl]
+\setsansfont{cmun}[Extension=.otf,UprightFont=*ss,BoldFont=*sx,ItalicFont=*si]
+\usepackage{polyglossia}
+\setdefaultlanguage{russian}
+\setotherlanguage{english}
+\newfontfamily\cyrillicfont{cmun}[Extension=.otf,UprightFont=*rm,BoldFont=*bx,ItalicFont=*ti,BoldItalicFont=*bi]
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+\setlist{itemsep=1pt,topsep=3pt}
+\usepackage[colorlinks=true,linkcolor=blue!60!black,urlcolor=blue!60!black]{hyperref}
+\setlength{\parindent}{1.2em}
+\setlength{\parskip}{2pt}
+\allowdisplaybreaks
+\usepackage{graphicx}
+\newsavebox\dispbox
+\newcommand\fitdisp[2]{\sbox\dispbox{$\displaystyle #2$}\ifdim\wd\dispbox>\dimexpr\linewidth-#1\relax\resizebox{\dimexpr\linewidth-#1\relax}{!}{\usebox\dispbox}\else\usebox\dispbox\fi}
+\emergencystretch=2em
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small Дискретная математика — ответы к экзамену}
+\fancyhead[R]{\small\rightmark}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\contentsname}{Содержание}
+\begin{document}
+\begin{titlepage}
+\centering
+\vspace*{0.3\textheight}
+{\Huge\bfseries Дискретная математика\par}
+\vspace{1.5em}
+{\Large Подробные ответы на экзаменационные вопросы\par}
+\vspace{1.5em}
+{\large 4 курс, 2 поток, осенний семестр 2024–2025\\ лектор — проф. А. В. Чашкин\par}
+\vspace{4em}
+Определения и доказательства по книге:\\
+А. В. Чашкин. \emph{Лекции по дискретной математике}. 2024.\\
+Ссылки вида «гл. 2.3, с. 47» указывают на страницы этой книги.
+\end{titlepage}
+\markright{СОДЕРЖАНИЕ}
+\tableofcontents

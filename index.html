@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дискретка: карточки</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="stylesheet" href="vendor/katex/katex.min.css">
+<script src="vendor/katex/katex.min.js"></script>
+<script src="vendor/marked/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f2ee; --card: #fff; --text: #1f1d1a; --muted: #6b665e; --border: #e2ddd4;
+    --good: #2f8f5b; --bad: #c4453c; --accent: #3557c4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #181715; --card: #23211e; --text: #ece8e1; --muted: #9a948a; --border: #36332e;
+      --good: #4cb37b; --bad: #e0675e; --accent: #7f9cf5; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 17px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  header h1 { font-size: 20px; margin: 0; }
+  .stats { color: var(--muted); font-size: 14px; display: flex; gap: 14px; flex-wrap: wrap; }
+  .stats b.good { color: var(--good); } .stats b.bad { color: var(--bad); }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  select, .small { font: inherit; font-size: 14px; padding: 6px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; }
+  select { appearance: none; -webkit-appearance: none; padding-right: 34px;
+    background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%238a847a' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center; }
+  .range { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--muted); }
+  .range select { max-width: 220px; }
+  .progress { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; margin-bottom: 20px; }
+  .progress div { height: 100%; background: var(--accent); transition: width .3s; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 24px; box-shadow: 0 2px 10px rgba(0,0,0,.05); }
+  .meta { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .question { font-size: 22px; font-weight: 600; line-height: 1.4; }
+  .answer { margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--border); overflow-x: auto; }
+  .answer .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+  .verdict { display: inline-block; font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 99px; margin-bottom: 12px; color: #fff; }
+  .verdict.good { background: var(--good); } .verdict.bad { background: var(--bad); }
+  .buttons { display: flex; gap: 16px; justify-content: center; margin-top: 20px; }
+  .btn { font: inherit; font-size: 18px; font-weight: 600; border: none; border-radius: 12px;
+    padding: 14px 28px; cursor: pointer; color: #fff; min-width: 160px; transition: transform .08s, opacity .15s; }
+  .btn:hover { opacity: .9; } .btn:active { transform: scale(.97); }
+  .btn.good { background: var(--good); } .btn.bad { background: var(--bad); } .btn.next { background: var(--accent); }
+  .hint { text-align: center; color: var(--muted); font-size: 13px; margin-top: 10px; }
+  .done { text-align: center; padding: 40px 20px; }
+  .hidden { display: none !important; }
+  .step { margin-bottom: 16px; padding-left: 14px; border-left: 3px solid var(--accent); }
+  .step-title { font-size: 14px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+  .step-title .katex { font-size: 1em; }
+  .step-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .btn.step-btn { background: var(--card); color: var(--accent); border: 2px solid var(--accent);
+    font-size: 16px; padding: 10px 18px; min-width: 0; text-align: left; }
+  .step-count { color: var(--muted); font-size: 13px; }
+  body.list-mode .quiz-only, body:not(.list-mode) #list { display: none !important; }
+  #list details { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 10px; }
+  #list summary { cursor: pointer; padding: 12px 16px; font-weight: 600; list-style: none; display: flex; gap: 10px; }
+  #list summary::-webkit-details-marker { display: none; }
+  #list summary::before { content: '▸'; color: var(--muted); flex: none; width: 1em; }
+  #list details[open] > summary::before { content: '▾'; }
+  #list summary .sub { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: auto; white-space: nowrap; }
+  #list .ticket-body { padding: 0 16px 6px; }
+  #list .ticket-body details { border-radius: 10px; box-shadow: none; }
+  #list .ticket-body summary { font-weight: 500; }
+  #list .q-body { padding: 0 16px 12px; border-top: 1px dashed var(--border); overflow-x: auto; }
+  #list .q-body .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Дискретная математика</h1>
+    <div class="stats quiz-only">
+      <span>Осталось: <b id="left">0</b></span>
+      <span>Знаю: <b class="good" id="known">0</b></span>
+      <span>Не знаю: <b class="bad" id="unknown">0</b></span>
+    </div>
+  </header>
+  <div class="controls">
+    <label class="range">Билеты с <select id="from"></select> по <select id="to"></select></label>
+    <select id="mode">
+      <option value="cards">Режим: ответ целиком</option>
+      <option value="steps">Режим: доказательство по шагам</option>
+      <option value="list">Режим: список билетов</option>
+    </select>
+    <select id="order" class="quiz-only">
+      <option value="shuffle">Случайный порядок</option>
+      <option value="seq">По порядку</option>
+    </select>
+    <button class="small quiz-only" id="restart">Начать заново</button>
+  </div>
+  <div class="progress quiz-only"><div id="bar" style="width:0"></div></div>
+
+  <div id="list"></div>
+
+  <div class="quiz-only">
+  <div class="card" id="card">
+    <div class="meta" id="meta"></div>
+    <div class="question" id="question"></div>
+    <div class="answer hidden" id="answer">
+      <span class="verdict" id="verdict"></span>
+      <div id="answerBody"></div>
+    </div>
+  </div>
+
+  <div class="buttons" id="judge">
+    <button class="btn good" id="btnKnow">✓ Знаю</button>
+    <button class="btn bad" id="btnDont">✗ Не знаю</button>
+  </div>
+  <div class="buttons hidden" id="nextWrap">
+    <button class="btn next" id="btnNext">Следующий вопрос →</button>
+  </div>
+  <div class="hint" id="hint"></div>
+
+  <div class="card done hidden" id="done"></div>
+  </div>
+</div>
+
+<script>
+// --- Markdown + LaTeX rendering: cut math out before marked, put rendered KaTeX back after
+function renderMd(src, inline) {
+  const math = [];
+  const stash = (tex, display) => { math.push({ tex, display }); return `@@MATH${math.length - 1}@@`; };
+  src = src.replace(/\$\$([\s\S]+?)\$\$/g, (_, t) => stash(t, true))
+           .replace(/\$((?:\\.|[^$\\\n])+?)\$/g, (_, t) => stash(t, false));
+  let html = inline ? marked.parseInline(src) : marked.parse(src);
+  return html.replace(/@@MATH(\d+)@@/g, (_, i) => {
+    const m = math[+i];
+    try { return katex.renderToString(m.tex, { displayMode: m.display, throwOnError: false }); }
+    catch { return m.tex; }
+  });
+}
+
+const $ = id => document.getElementById(id);
+const KEY = 'dm-learn-state-v1', MODE_KEY = 'dm-learn-mode';
+let all = [], state = null, phase = 'question';
+let mode = 'cards', stepsShown = 0;
+const HINTS = {
+  cards: 'Клавиши: ← не знаю · → знаю · пробел / Enter — следующий',
+  steps: 'Клавиши: пробел / Enter — следующий шаг · ← не знаю · → знаю',
+  list: '',
+};
+
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.random() * (i + 1) | 0; [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+function newSession() {
+  let from = +$('from').value, to = +$('to').value;
+  if (from > to) { [from, to] = [to, from]; $('from').value = from; $('to').value = to; }
+  let ids = all.filter(q => q.ticket >= from && q.ticket <= to).map(q => q.id);
+  if ($('order').value === 'shuffle') shuffle(ids);
+  state = { from, to, order: $('order').value, queue: ids, total: ids.length, known: 0, unknown: 0, current: null };
+  next();
+}
+
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
+function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
+
+function updateStats() {
+  $('left').textContent = state.queue.length + (state.current ? 1 : 0);
+  $('known').textContent = state.known;
+  $('unknown').textContent = state.unknown;
+  $('bar').style.width = (state.total ? state.known / state.total * 100 : 0) + '%';
+}
+
+function show() {
+  updateStats();
+  if (mode === 'list') return renderList();
+  const q = all.find(x => x.id === state.current);
+  const finished = !q;
+  ['card', 'judge', 'hint'].forEach(id => $(id).classList.toggle('hidden', finished));
+  $('done').classList.toggle('hidden', !finished);
+  $('nextWrap').classList.add('hidden');
+  if (finished) {
+    $('done').innerHTML = `<h2>Готово! 🎉</h2><p>Все ${state.total} вопросов отмечены как «знаю».<br>
+      Ошибок по ходу: ${state.unknown}.</p><button class="btn next" onclick="newSession()">Пройти ещё раз</button>`;
+    return;
+  }
+  phase = 'question';
+  $('meta').textContent = `Билет ${q.ticket} · вопрос ${q.id} · ${q.ticket_title}` + (q.book_ref ? ` · ${q.book_ref}` : '');
+  $('question').innerHTML = renderMd(q.question);
+  $('answer').classList.add('hidden');
+  $('verdict').classList.add('hidden');
+  $('judge').classList.remove('hidden');
+  if (mode === 'steps') {
+    stepsShown = 0;
+    renderSteps(q);
+    $('answer').classList.remove('hidden');
+  }
+  window.scrollTo({ top: 0 });
+}
+
+// Ответ, разбитый на шаги: steps[i].line — номер строки answer, с которой начинается шаг
+function splitSteps(q) {
+  const lines = q.answer.split('\n'), st = q.steps || [{ title: 'Ответ', line: 0 }];
+  return st.map((s, i) => ({ title: s.title,
+    text: lines.slice(s.line, i + 1 < st.length ? st[i + 1].line : lines.length).join('\n') }));
+}
+
+function renderSteps(q) {
+  const steps = splitSteps(q), body = $('answerBody');
+  body.innerHTML = steps.slice(0, stepsShown).map((s, i) =>
+    `<div class="step"><div class="step-title">Шаг ${i + 1}. ${renderMd(s.title, true)}</div>${renderMd(s.text)}</div>`).join('');
+  if (phase === 'question' && stepsShown < steps.length) {
+    const s = steps[stepsShown];
+    body.insertAdjacentHTML('beforeend', `<div class="step-controls">
+      <button class="btn step-btn" id="btnStep">Шаг ${stepsShown + 1}: ${renderMd(s.title, true)} ▾</button>
+      <span class="step-count">${stepsShown} из ${steps.length}</span>
+      ${stepsShown < steps.length - 1 ? '<button class="small" id="btnAllSteps">Показать всё</button>' : ''}</div>`);
+    $('btnStep').onclick = () => openStep(1);
+    if ($('btnAllSteps')) $('btnAllSteps').onclick = () => openStep(Infinity);
+  }
+}
+
+function openStep(n) {
+  const q = all.find(x => x.id === state.current);
+  if (!q || mode !== 'steps' || phase !== 'question') return;
+  const total = splitSteps(q).length;
+  if (stepsShown >= total) return;
+  const prev = stepsShown;
+  stepsShown = Math.min(total, stepsShown + n);
+  renderSteps(q);
+  const opened = $('answerBody').querySelectorAll('.step')[prev];
+  if (opened) opened.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if ($('btnStep')) $('btnStep').focus({ preventScroll: true });
+}
+
+function judge(know) {
+  if (phase !== 'question') return;
+  phase = 'answer';
+  const q = all.find(x => x.id === state.current);
+  if (know) state.known++;
+  else {
+    state.unknown++;
+    // не знаю — вопрос вернётся позже, примерно через 5 карточек
+    state.queue.splice(Math.min(5, state.queue.length), 0, q.id);
+  }
+  state.current = null;
+  save();
+  updateStats();
+  $('verdict').className = 'verdict ' + (know ? 'good' : 'bad');
+  $('verdict').textContent = know ? '✓ Знаю' : '✗ Не знаю — вопрос вернётся позже';
+  state.lastAnswer = q.id;
+  renderAnswer(q);
+  $('answer').classList.remove('hidden');
+  $('judge').classList.add('hidden');
+  $('nextWrap').classList.remove('hidden');
+  $('btnNext').focus({ preventScroll: true });
+}
+
+// после оценки: в пошаговом режиме открываются все оставшиеся шаги
+function renderAnswer(q) {
+  if (mode === 'steps') { stepsShown = Infinity; renderSteps(q); }
+  else $('answerBody').innerHTML = renderMd(q.answer);
+}
+
+// Все билеты из выбранного диапазона свёрнутым списком; ответ рендерится при первом раскрытии
+function renderList() {
+  const from = +$('from').value, to = +$('to').value, byTicket = new Map();
+  all.filter(q => q.ticket >= from && q.ticket <= to).forEach(q => {
+    if (!byTicket.has(q.ticket)) byTicket.set(q.ticket, []);
+    byTicket.get(q.ticket).push(q);
+  });
+  $('list').innerHTML = [...byTicket].map(([t, qs]) => `<details><summary><span>Билет ${t}. ${qs[0].ticket_title}</span>
+    <span class="sub">${qs.length} вопр.</span></summary><div class="ticket-body">${qs.map(q =>
+      `<details data-id="${q.id}"><summary><span>${q.id}. ${renderMd(q.question, true)}</span>${q.book_ref ? `<span class="sub">${q.book_ref}</span>` : ''}</summary>
+      <div class="q-body"></div></details>`).join('')}</div></details>`).join('');
+  $('list').querySelectorAll('details[data-id]').forEach(d => d.addEventListener('toggle', () => {
+    const body = d.querySelector('.q-body');
+    if (d.open && !body.innerHTML) body.innerHTML = renderMd(all.find(x => x.id === d.dataset.id).answer);
+  }));
+}
+
+function setMode(m) {
+  mode = ['steps', 'list'].includes(m) ? m : 'cards';
+  document.body.classList.toggle('list-mode', mode === 'list');
+  $('mode').value = mode;
+  $('hint').textContent = HINTS[mode];
+  try { localStorage.setItem(MODE_KEY, mode); } catch {}
+}
+
+function next() {
+  state.current = state.queue.shift() || null;
+  save();
+  show();
+}
+
+$('btnKnow').onclick = () => judge(true);
+$('btnDont').onclick = () => judge(false);
+$('btnNext').onclick = next;
+$('restart').onclick = () => { if (confirm('Сбросить прогресс и начать заново?')) newSession(); };
+$('order').onchange = newSession;
+// в режиме списка диапазон меняет только список, прогресс карточек не сбрасывается
+$('from').onchange = $('to').onchange = () => mode === 'list' ? renderList() : newSession();
+$('mode').onchange = () => {
+  setMode($('mode').value);
+  if (!state) return;
+  if (mode === 'list') renderList();
+  else if (+$('from').value !== +state.from || +$('to').value !== +state.to) newSession();
+  else if (phase === 'answer') { const q = all.find(x => x.id === state.lastAnswer); if (q) renderAnswer(q); }
+  else show();
+};
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'SELECT' || mode === 'list') return;
+  if (phase === 'question') {
+    if (e.key === 'ArrowRight') judge(true);
+    if (e.key === 'ArrowLeft') judge(false);
+    if (mode === 'steps' && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); openStep(1); }
+  } else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); }
+});
+
+let savedMode = null;
+try { savedMode = localStorage.getItem(MODE_KEY); } catch {}
+setMode(savedMode);
+
+fetch('dm_qa.json').then(r => r.json()).then(data => {
+  all = data;
+  const tickets = [...new Map(data.map(q => [q.ticket, q.ticket_title])).entries()].sort((a, b) => a[0] - b[0]);
+  const opts = tickets.map(([n, t]) => `<option value="${n}" title="${t}">${n}: ${t.length > 40 ? t.slice(0, 40) + '…' : t}</option>`).join('');
+  $('from').innerHTML = $('to').innerHTML = opts;
+  const first = tickets[0][0], last = tickets[tickets.length - 1][0];
+  $('from').value = first; $('to').value = last;
+  const saved = load();
+  if (saved && saved.queue) {
+    state = saved;
+    // старый формат: один билет или 'all'
+    if (state.from == null) {
+      const t = state.ticket;
+      state.from = t && t !== 'all' ? +t : first;
+      state.to = t && t !== 'all' ? +t : last;
+      delete state.ticket;
+    }
+    $('from').value = state.from; $('to').value = state.to; $('order').value = state.order;
+    if (!state.current && state.queue.length) next(); else show();
+  } else newSession();
+});
+</script>
+</body>
+</html>
