@@ -40,8 +40,6 @@
   .question { font-size: 22px; font-weight: 600; line-height: 1.4; }
   .answer { margin-top: 20px; padding-top: 20px; border-top: 1px dashed var(--border); overflow-x: auto; }
   .answer .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
-  .verdict { display: inline-block; font-size: 13px; font-weight: 600; padding: 2px 10px; border-radius: 99px; margin-bottom: 12px; color: #fff; }
-  .verdict.good { background: var(--good); } .verdict.bad { background: var(--bad); }
   .buttons { display: flex; gap: 16px; justify-content: center; margin-top: 20px; }
   .btn { font: inherit; font-size: 18px; font-weight: 600; border: none; border-radius: 12px;
     padding: 14px 28px; cursor: pointer; color: #fff; min-width: 160px; transition: transform .08s, opacity .15s; }
@@ -77,14 +75,15 @@
     <h1>Дискретная математика</h1>
     <div class="stats quiz-only">
       <span>Осталось: <b id="left">0</b></span>
-      <span>Знаю: <b class="good" id="known">0</b></span>
-      <span>Не знаю: <b class="bad" id="unknown">0</b></span>
+      <span>Знал: <b class="good" id="known">0</b></span>
+      <span>Ошибся: <b class="bad" id="unknown">0</b></span>
     </div>
   </header>
   <div class="controls">
     <label class="range">Билеты с <select id="from"></select> по <select id="to"></select></label>
     <select id="mode">
       <option value="cards">Режим: ответ целиком</option>
+      <option value="defs">Режим: формулировки</option>
       <option value="steps">Режим: доказательство по шагам</option>
       <option value="list">Режим: список билетов</option>
     </select>
@@ -103,17 +102,16 @@
     <div class="meta" id="meta"></div>
     <div class="question" id="question"></div>
     <div class="answer hidden" id="answer">
-      <span class="verdict" id="verdict"></span>
       <div id="answerBody"></div>
     </div>
   </div>
 
-  <div class="buttons" id="judge">
-    <button class="btn good" id="btnKnow">✓ Знаю</button>
-    <button class="btn bad" id="btnDont">✗ Не знаю</button>
+  <div class="buttons" id="revealWrap">
+    <button class="btn next" id="btnReveal">Показать ответ</button>
   </div>
-  <div class="buttons hidden" id="nextWrap">
-    <button class="btn next" id="btnNext">Следующий вопрос →</button>
+  <div class="buttons hidden" id="judge">
+    <button class="btn bad" id="btnDont">✗ Ошибся</button>
+    <button class="btn good" id="btnKnow">✓ Знал</button>
   </div>
   <div class="hint" id="hint"></div>
 
@@ -137,12 +135,17 @@ function renderMd(src, inline) {
 }
 
 const $ = id => document.getElementById(id);
-const KEY = 'dm-learn-state-v1', MODE_KEY = 'dm-learn-mode';
-let all = [], state = null, phase = 'question';
+const KEY = 'dm-learn-state-v1', DEFS_KEY = 'dm-learn-defs-state-v1', MODE_KEY = 'dm-learn-mode';
+let all = [], defs = [], state = null, phase = 'question';
+// режим «формулировки» гоняет отдельный набор карточек (dm_defs.json) со своим прогрессом
+let statePool = null;
+const poolName = () => mode === 'defs' ? 'defs' : 'qa';
+const pool = () => statePool === 'defs' ? defs : all;
 let mode = 'cards', stepsShown = 0;
 const HINTS = {
-  cards: 'Клавиши: ← не знаю · → знаю · пробел / Enter — следующий',
-  steps: 'Клавиши: пробел / Enter — следующий шаг · ← не знаю · → знаю',
+  cards: 'Клавиши: пробел / Enter — показать ответ · ← ошибся · → знал',
+  defs: 'Клавиши: пробел / Enter — показать ответ · ← ошибся · → знал',
+  steps: 'Клавиши: пробел / Enter — следующий шаг · ← ошибся · → знал',
   list: '',
 };
 
@@ -151,14 +154,33 @@ function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.ra
 function newSession() {
   let from = +$('from').value, to = +$('to').value;
   if (from > to) { [from, to] = [to, from]; $('from').value = from; $('to').value = to; }
-  let ids = all.filter(q => q.ticket >= from && q.ticket <= to).map(q => q.id);
+  statePool = poolName();
+  let ids = pool().filter(q => q.ticket >= from && q.ticket <= to).map(q => q.id);
   if ($('order').value === 'shuffle') shuffle(ids);
   state = { from, to, order: $('order').value, queue: ids, total: ids.length, known: 0, unknown: 0, current: null };
   next();
 }
 
-function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch {} }
-function load() { try { return JSON.parse(localStorage.getItem(KEY)); } catch { return null; } }
+const stateKey = () => statePool === 'defs' ? DEFS_KEY : KEY;
+function save() { try { localStorage.setItem(stateKey(), JSON.stringify(state)); } catch {} }
+function load() { try { return JSON.parse(localStorage.getItem(stateKey())); } catch { return null; } }
+
+// подхватить сохранённый прогресс набора карточек текущего режима или начать новый
+function restore() {
+  statePool = poolName();
+  const saved = load();
+  if (!saved || !saved.queue) return newSession();
+  state = saved;
+  // старый формат: один билет или 'all'
+  if (state.from == null) {
+    const t = state.ticket, first = all[0].ticket, last = all[all.length - 1].ticket;
+    state.from = t && t !== 'all' ? +t : first;
+    state.to = t && t !== 'all' ? +t : last;
+    delete state.ticket;
+  }
+  $('from').value = state.from; $('to').value = state.to; $('order').value = state.order;
+  if (!state.current && state.queue.length) next(); else show();
+}
 
 function updateStats() {
   $('left').textContent = state.queue.length + (state.current ? 1 : 0);
@@ -170,22 +192,21 @@ function updateStats() {
 function show() {
   updateStats();
   if (mode === 'list') return renderList();
-  const q = all.find(x => x.id === state.current);
+  const q = pool().find(x => x.id === state.current);
   const finished = !q;
-  ['card', 'judge', 'hint'].forEach(id => $(id).classList.toggle('hidden', finished));
+  ['card', 'hint'].forEach(id => $(id).classList.toggle('hidden', finished));
   $('done').classList.toggle('hidden', !finished);
-  $('nextWrap').classList.add('hidden');
+  $('revealWrap').classList.toggle('hidden', finished);
+  $('judge').classList.add('hidden');
   if (finished) {
-    $('done').innerHTML = `<h2>Готово! 🎉</h2><p>Все ${state.total} вопросов отмечены как «знаю».<br>
+    $('done').innerHTML = `<h2>Готово! 🎉</h2><p>Все ${state.total} вопросов отмечены как «знал».<br>
       Ошибок по ходу: ${state.unknown}.</p><button class="btn next" onclick="newSession()">Пройти ещё раз</button>`;
     return;
   }
   phase = 'question';
-  $('meta').textContent = `Билет ${q.ticket} · вопрос ${q.id} · ${q.ticket_title}` + (q.book_ref ? ` · ${q.book_ref}` : '');
+  $('meta').textContent = `Билет ${q.ticket} · ${q.kind || 'вопрос ' + q.id} · ${q.ticket_title}` + (q.book_ref ? ` · ${q.book_ref}` : '');
   $('question').innerHTML = renderMd(q.question);
   $('answer').classList.add('hidden');
-  $('verdict').classList.add('hidden');
-  $('judge').classList.remove('hidden');
   if (mode === 'steps') {
     stepsShown = 0;
     renderSteps(q);
@@ -217,7 +238,7 @@ function renderSteps(q) {
 }
 
 function openStep(n) {
-  const q = all.find(x => x.id === state.current);
+  const q = pool().find(x => x.id === state.current);
   if (!q || mode !== 'steps' || phase !== 'question') return;
   const total = splitSteps(q).length;
   if (stepsShown >= total) return;
@@ -226,33 +247,36 @@ function openStep(n) {
   renderSteps(q);
   const opened = $('answerBody').querySelectorAll('.step')[prev];
   if (opened) opened.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  if ($('btnStep')) $('btnStep').focus({ preventScroll: true });
+  if (stepsShown >= total) reveal();
+  else if ($('btnStep')) $('btnStep').focus({ preventScroll: true });
+}
+
+// показать ответ целиком (в пошаговом режиме — все оставшиеся шаги), дальше — оценка
+function reveal() {
+  if (phase !== 'question') return;
+  const q = pool().find(x => x.id === state.current);
+  if (!q) return;
+  phase = 'answer';
+  renderAnswer(q);
+  $('answer').classList.remove('hidden');
+  $('revealWrap').classList.add('hidden');
+  $('judge').classList.remove('hidden');
+  $('btnKnow').focus({ preventScroll: true });
 }
 
 function judge(know) {
-  if (phase !== 'question') return;
-  phase = 'answer';
-  const q = all.find(x => x.id === state.current);
+  if (phase !== 'answer') return;
+  const q = pool().find(x => x.id === state.current);
   if (know) state.known++;
   else {
     state.unknown++;
-    // не знаю — вопрос вернётся позже, примерно через 5 карточек
+    // ошибся — вопрос вернётся позже, примерно через 5 карточек
     state.queue.splice(Math.min(5, state.queue.length), 0, q.id);
   }
-  state.current = null;
-  save();
-  updateStats();
-  $('verdict').className = 'verdict ' + (know ? 'good' : 'bad');
-  $('verdict').textContent = know ? '✓ Знаю' : '✗ Не знаю — вопрос вернётся позже';
-  state.lastAnswer = q.id;
-  renderAnswer(q);
-  $('answer').classList.remove('hidden');
-  $('judge').classList.add('hidden');
-  $('nextWrap').classList.remove('hidden');
-  $('btnNext').focus({ preventScroll: true });
+  next();
 }
 
-// после оценки: в пошаговом режиме открываются все оставшиеся шаги
+// в пошаговом режиме открываются все оставшиеся шаги
 function renderAnswer(q) {
   if (mode === 'steps') { stepsShown = Infinity; renderSteps(q); }
   else $('answerBody').innerHTML = renderMd(q.answer);
@@ -276,7 +300,7 @@ function renderList() {
 }
 
 function setMode(m) {
-  mode = ['steps', 'list'].includes(m) ? m : 'cards';
+  mode = ['steps', 'list', 'defs'].includes(m) ? m : 'cards';
   document.body.classList.toggle('list-mode', mode === 'list');
   $('mode').value = mode;
   $('hint').textContent = HINTS[mode];
@@ -291,7 +315,7 @@ function next() {
 
 $('btnKnow').onclick = () => judge(true);
 $('btnDont').onclick = () => judge(false);
-$('btnNext').onclick = next;
+$('btnReveal').onclick = reveal;
 $('restart').onclick = () => { if (confirm('Сбросить прогресс и начать заново?')) newSession(); };
 $('order').onchange = newSession;
 // в режиме списка диапазон меняет только список, прогресс карточек не сбрасывается
@@ -300,43 +324,31 @@ $('mode').onchange = () => {
   setMode($('mode').value);
   if (!state) return;
   if (mode === 'list') renderList();
+  else if (poolName() !== statePool) restore();
   else if (+$('from').value !== +state.from || +$('to').value !== +state.to) newSession();
-  else if (phase === 'answer') { const q = all.find(x => x.id === state.lastAnswer); if (q) renderAnswer(q); }
+  else if (phase === 'answer') { const q = pool().find(x => x.id === state.current); if (q) renderAnswer(q); }
   else show();
 };
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'SELECT' || mode === 'list') return;
   if (phase === 'question') {
-    if (e.key === 'ArrowRight') judge(true);
-    if (e.key === 'ArrowLeft') judge(false);
-    if (mode === 'steps' && (e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); openStep(1); }
-  } else if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); }
+    if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); mode === 'steps' ? openStep(1) : reveal(); }
+  } else if (e.key === 'ArrowRight') judge(true);
+  else if (e.key === 'ArrowLeft') judge(false);
 });
 
 let savedMode = null;
 try { savedMode = localStorage.getItem(MODE_KEY); } catch {}
 setMode(savedMode);
 
-fetch('dm_qa.json').then(r => r.json()).then(data => {
-  all = data;
+Promise.all(['dm_qa.json', 'dm_defs.json'].map(f => fetch(f).then(r => r.json()))).then(([data, defsData]) => {
+  all = data; defs = defsData;
   const tickets = [...new Map(data.map(q => [q.ticket, q.ticket_title])).entries()].sort((a, b) => a[0] - b[0]);
   const opts = tickets.map(([n, t]) => `<option value="${n}" title="${t}">${n}: ${t.length > 40 ? t.slice(0, 40) + '…' : t}</option>`).join('');
   $('from').innerHTML = $('to').innerHTML = opts;
   const first = tickets[0][0], last = tickets[tickets.length - 1][0];
   $('from').value = first; $('to').value = last;
-  const saved = load();
-  if (saved && saved.queue) {
-    state = saved;
-    // старый формат: один билет или 'all'
-    if (state.from == null) {
-      const t = state.ticket;
-      state.from = t && t !== 'all' ? +t : first;
-      state.to = t && t !== 'all' ? +t : last;
-      delete state.ticket;
-    }
-    $('from').value = state.from; $('to').value = state.to; $('order').value = state.order;
-    if (!state.current && state.queue.length) next(); else show();
-  } else newSession();
+  restore();
 });
 </script>
 </body>
